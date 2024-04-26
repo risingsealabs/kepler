@@ -1,9 +1,8 @@
 { }:
 let
   pkgs = import (builtins.fetchTarball {
-    name = "master";
-    url = https://github.com/nixos/nixpkgs/archive/7fd5059f58dd5c50975579e2e87ca1294bbc845a.tar.gz;
-    sha256 = "0b4q30vrzmh40w3k37yzdiyl9fmh40qfjfa922mv9lfv1rmcbdrv";
+    url = https://github.com/nixos/nixpkgs/archive/4c86138ce486d601d956a165e2f7a0fc029a03c1.tar.gz;
+    sha256 = "sha256:0bw84ndw6f82yapkkpqnqbv1izyys3y79nlmg04576z53ccggjgb";
   }) { inherit overlays; };
 
   gitignore = pkgs.fetchFromGitHub {
@@ -15,7 +14,8 @@ let
   gitignoreSource = (import gitignore {}).gitignoreSource;
 
   iavl = pkgs.callPackage ./iavl.nix {};
-  tendermint = pkgs.callPackage ./tendermint.nix {};
+
+  tendermint = (pkgs.callPackage ./tendermint.nix {}).overrideAttrs { __darwinAllowLocalNetworking = true; };
 
   root = ../.;
 
@@ -38,28 +38,33 @@ let
       rev    = "dfc468845a82cdd7d759943b20853999bc026505";
       sha256 = "005j98hmzzh9ybd8wb073i47nwvv1hfh844vv4kflba3m8d75d80";
     };
+
+    # https://github.com/haskell-grpc-native/http2-client/pull/92#issuecomment-2079254415
+    http2-client = pkgs.fetchFromGitHub {
+      owner  = "haskell-grpc-native";
+      repo   = "http2-client";
+      rev    = "0140d8fc21e240325a19da4ce641c346df5f5079";
+      sha256 = "sha256-umw1EJ9NCfu5LrAbD/s4IKFFtUhIkIt4MwrOfedMf/0=";
+    };
+
     http2-grpc-haskell = pkgs.fetchFromGitHub {
       owner  = "haskell-grpc-native";
       repo   = "http2-grpc-haskell";
-      rev    = "496e92bc967eff02ac3698ba12ba2dfe38bc8b74";
-      sha256 = "199nz6dpqlzg9jyc0kq1har0l2zididpi2wkriai6cn91s7fc3my";
+      rev    = "7c19009e37fc305f73988b06b2cba9f31ae5478e";
+      sha256 = "sha256-aDn9LsImlz2mSbieSsW+42e8Rsv8oEgSv6MKXsntArk=";
     };
-    proto3-suite = pkgs.fetchFromGitHub {
-      owner  = "awakesecurity";
-      repo   = "proto3-suite";
-      rev    = "45950a3860cbcb3f3177e9725dbdf460d6da9d45";
-      sha256 = "1fm0a5i9q9p393c9if6n6nz0q7di0p1fjx262fyj7j20nnl3f9i3";
-    };
-    proto3-wire = pkgs.fetchFromGitHub {
-      owner  = "awakesecurity";
-      repo   = "proto3-wire";
-      rev    = "5df56fe1ad26a18b1dfbb2a5b8d35b4c1ad63f53";
-      sha256 = "1d2ir9ds4vawrn6lkxqgyw9zg8h2l4d6m8ihhy6znjllh12fmjyp";
+
+    # https://github.com/well-typed/large-records/pull/151
+    large-records = pkgs.fetchFromGitHub {
+      owner  = "TristanCacqueray";
+      repo   = "large-records";
+      rev    = "7576d3de071d775901073ab4c714b984fab84c95";
+      sha256 = "sha256-kKF81qs93I/Wj7Ah+bneFYFz8xIulT2E85CIJuq3zf4=";
     };
   };
 
   repoPackages = {
-    inherit (repos) avl-auth proto3-suite proto3-wire;
+    inherit (repos) avl-auth;
   };
 
   extra-build-inputs = with pkgs; {
@@ -71,23 +76,7 @@ let
 
   addBuildInputs = inputs: { buildInputs ? [], ... }: { buildInputs = inputs ++ buildInputs; };
 
-  hackageOverrides = self: super: {
-    ghc-tcplugins-extra = self.callHackage "ghc-tcplugins-extra" "0.3.2" {};
-
-    http2-client = pkgs.haskell.lib.doJailbreak super.http2-client;
-    http2-client-grpc = self.callCabal2nix "http2-client-grpc" (repos.http2-grpc-haskell + /http2-client-grpc) {};
-    http2-grpc-proto-lens = self.callCabal2nix "http2-grpc-proto-lens" (repos.http2-grpc-haskell + /http2-grpc-proto-lens) {};
-
-    polysemy = self.callHackage "polysemy" "1.3.0.0" {};
-    polysemy-plugin = self.callHackage "polysemy-plugin" "0.2.5.0" {};
-    polysemy-zoo = self.callHackage "polysemy-zoo" "0.7.0.0" {};
-
-    prometheus = self.callHackageDirect {
-      pkg = "prometheus";
-      ver = "2.1.3";
-      sha256 = "04w3cm6r6dh284mg1lpzj4sl6d30ap3idkkdjzck3vcy5p788554";
-    } {};
-  };
+  hackageOverrides = self: super: {};
 
   localOverrides = self: super:
     builtins.mapAttrs (name: path: (self.callCabal2nix name (gitignoreSource path) {})) packages;
@@ -138,29 +127,19 @@ let
         overrides = pkgs.lib.foldr pkgs.lib.composeExtensions (old.overrides or (_: _: {})) [
           overrides
           (self: super: with pkgs.haskell.lib; {
-            http2-client = unmarkBroken super.http2-client;
-            parameterized = dontCheck (unmarkBroken super.parameterized);
-
-            # https://github.com/NixOS/nixpkgs/pull/82562
-            secp256k1 = null;
-            secp256k1-haskell = addPkgconfigDepend (self.callHackage "secp256k1-haskell" "0.1.8" {}) pkgs.secp256k1;
-
             avl-auth = dontCheck super.avl-auth;  # https://github.com/haskell-haskey/xxhash-ffi/issues/2
-            bloodhound = doJailbreak (unmarkBroken super.bloodhound); # tight bounds
-            katip-elasticsearch = dontCheck (unmarkBroken super.katip-elasticsearch); # needs elastic-search for tests
-            proto3-suite = dontCheck super.proto3-suite; # needs old 'tasty'
 
-            hs-tendermint-client = dontCheck super.hs-tendermint-client; # last test fails frequently
-            hs-iavl-client = keplerTests super.hs-iavl-client { runIavl = true; };
-            hs-abci-sdk = keplerTests super.hs-abci-sdk { runIavl = true; };
+            http2-client = doJailbreak (self.callCabal2nix "http2-client" repos.http2-client {});
+            http2-client-grpc = doJailbreak (self.callCabal2nixWithOptions "http2-client-grpc" repos.http2-grpc-haskell "--subpath http2-client-grpc" {});
 
-            simple-storage = keplerTests super.simple-storage {
-              runIavl = true;
-              runABCI = "IAVL_HOST=localhost IAVL_PORT=8090 dist/build/simple-storage/simple-storage";
-              runTendermint= "tcp://localhost:26658";
-            };
+            http2-grpc-proto-lens = doJailbreak (unmarkBroken super.http2-grpc-proto-lens);
+            http2-grpc-types = doJailbreak (unmarkBroken super.http2-grpc-types);
+            large-generics = doJailbreak (unmarkBroken super.large-generics);
+            large-records = doJailbreak (self.callCabal2nixWithOptions "large-records" repos.large-records "--subpath large-records" {});
 
-            nameservice = dontCheck super.nameservice;
+            proto-lens-arbitrary = unmarkBroken super.proto-lens-arbitrary;
+            proto3-suite = dontCheck (doJailbreak super.proto3-suite); # Test suite fails to build with module discovery errors
+            proto3-wire = doJailbreak (unmarkBroken super.proto3-wire);
           }
         )
       ];
@@ -173,7 +152,7 @@ in rec {
   inherit pkgs overlays;
 
   buildInputs = {
-    inherit (pkgs) iavl protobuf tendermint;
+    inherit (pkgs) /*iavl*/ protobuf tendermint;
     inherit (pkgs.haskellPackages) cabal-install ghcid hlint stack stylish-haskell weeder;
   };
 

@@ -34,6 +34,7 @@ default-extensions:
 - OverloadedStrings
 - MultiParamTypeClasses
 - FunctionalDependencies
+- TypeOperators
 
 
 library:
