@@ -133,7 +133,7 @@ let
   overlays = [overlay];
 
 in rec {
-  inherit nixpkgs overlays;
+  inherit nixpkgs haskellOverrides iavl tendermint;
 
   buildInputs = {
     inherit (nixpkgs) /*iavl*/ protobuf tendermint;
