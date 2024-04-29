@@ -1,9 +1,9 @@
-{ }:
+{ system ? builtins.currentSystem }:
 let
   nixpkgs = import (builtins.fetchTarball {
     url = https://github.com/nixos/nixpkgs/archive/4c86138ce486d601d956a165e2f7a0fc029a03c1.tar.gz;
     sha256 = "sha256:0bw84ndw6f82yapkkpqnqbv1izyys3y79nlmg04576z53ccggjgb";
-  }) { inherit overlays; };
+  }) { inherit system overlays; };
 
   gitignore = nixpkgs.fetchFromGitHub {
     owner = "hercules-ci";
