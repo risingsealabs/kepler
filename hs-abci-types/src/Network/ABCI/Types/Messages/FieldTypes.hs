@@ -22,6 +22,7 @@ import           Data.ByteArray.Base64String                             (Base64
 import qualified Data.ByteArray.Base64String                             as Base64
 import           Data.ByteArray.HexString                                (HexString)
 import qualified Data.ByteArray.HexString                                as Hex
+import           Data.Fixed                                              (Fixed(MkFixed))
 import           Data.Int                                                (Int32,
                                                                           Int64)
 import           Data.ProtoLens.Message                                  (Message (defMessage))
@@ -29,8 +30,12 @@ import           Data.Text                                               (Text,
                                                                           pack,
                                                                           unpack)
 import           Data.Time.Clock                                         (DiffTime,
+                                                                          UTCTime(..),
+                                                                          nominalDiffTimeToSeconds,
+                                                                          diffUTCTime,
                                                                           diffTimeToPicoseconds,
                                                                           picosecondsToDiffTime)
+import           Data.Time.Calendar.OrdinalDate                          (fromOrdinalDate)
 import           Data.Time.Format                                        (defaultTimeLocale,
                                                                           parseTimeOrError)
 import           Data.Word                                               (Word64)
@@ -106,8 +111,14 @@ mkTimestamp ts =
 
 instance ToJSON Timestamp
 
+--TODO: should we preserve UTCTime instead of all this juggling?
 parseDiffTimeOrError :: String -> DiffTime
-parseDiffTimeOrError = parseTimeOrError True defaultTimeLocale "%FT%T%QZ"
+parseDiffTimeOrError = convertTime . diff . parse
+  where
+    parse = parseTimeOrError True defaultTimeLocale "%FT%T%QZ" --TODO: make parsing fail instead of using unsafe code
+    convertTime = picosecondsToDiffTime . (\(MkFixed n) -> n) . nominalDiffTimeToSeconds --TODO: screws up leap seconds
+    diff = (`diffUTCTime` unixEpoch)
+    unixEpoch = UTCTime (fromOrdinalDate 1970 1) 0
 
 instance FromJSON Timestamp where
   parseJSON (String t) = pure . mkTimestamp . parseDiffTimeOrError . unpack $ t
