@@ -1,15 +1,15 @@
 { system ? builtins.currentSystem }:
 let
   nixpkgs = import (builtins.fetchTarball {
-    url = https://github.com/nixos/nixpkgs/archive/4c86138ce486d601d956a165e2f7a0fc029a03c1.tar.gz;
-    sha256 = "sha256:0bw84ndw6f82yapkkpqnqbv1izyys3y79nlmg04576z53ccggjgb";
+    url = "https://github.com/NixOS/nixpkgs/archive/3f84a279f1a6290ce154c5531378acc827836fbb.tar.gz";
+    sha256 = "sha256:1qpvazfxh036ngm2xd1bgnshfrx0rrb9n0wrzf3dfq8h6v8c0mxv";
   }) { inherit system overlays; };
 
   gitignore = nixpkgs.fetchFromGitHub {
     owner = "hercules-ci";
     repo = "gitignore";
-    rev = "f9e996052b5af4032fe6150bba4a6fe4f7b9d698";
-    sha256 = "0jrh5ghisaqdd0vldbywags20m2cxpkbbk5jjjmwaw0gr8nhsafv";
+    rev = "637db329424fd7e46cf4185293b9cc8c88c95394";
+    sha256 = "sha256-HG2cCnktfHsKV0s4XW83gU3F57gaTljL9KNSuG6bnQs=";
   };
   gitignoreSource = (import gitignore {}).gitignoreSource;
 
@@ -39,14 +39,6 @@ let
       sha256 = "005j98hmzzh9ybd8wb073i47nwvv1hfh844vv4kflba3m8d75d80";
     };
 
-    # https://github.com/haskell-grpc-native/http2-client/pull/92#issuecomment-2079254415
-    http2-client = nixpkgs.fetchFromGitHub {
-      owner  = "haskell-grpc-native";
-      repo   = "http2-client";
-      rev    = "0140d8fc21e240325a19da4ce641c346df5f5079";
-      sha256 = "sha256-umw1EJ9NCfu5LrAbD/s4IKFFtUhIkIt4MwrOfedMf/0=";
-    };
-
     http2-grpc-haskell = nixpkgs.fetchFromGitHub {
       owner  = "haskell-grpc-native";
       repo   = "http2-grpc-haskell";
@@ -56,10 +48,10 @@ let
 
     # https://github.com/well-typed/large-records/pull/151
     large-records = nixpkgs.fetchFromGitHub {
-      owner  = "TristanCacqueray";
+      owner  = "well-typed";
       repo   = "large-records";
-      rev    = "7576d3de071d775901073ab4c714b984fab84c95";
-      sha256 = "sha256-kKF81qs93I/Wj7Ah+bneFYFz8xIulT2E85CIJuq3zf4=";
+      rev    = "21bf268a9d078689e888e5eb47128235ce4f1a59";
+      sha256 = "sha256-GpNrAOTs/ZsTJZ7RNYB93hF7mM8MR92b1vnnwNawsqw=";
     };
   };
 
@@ -107,17 +99,13 @@ let
     (self: super: with nixpkgs.haskell.lib; {
       avl-auth = dontCheck (self.callCabal2nix "avl-auth" repos.avl-auth {});  # https://github.com/haskell-haskey/xxhash-ffi/issues/2
 
-      http2-client = doJailbreak (self.callCabal2nix "http2-client" repos.http2-client {});
       http2-client-grpc = doJailbreak (self.callCabal2nixWithOptions "http2-client-grpc" repos.http2-grpc-haskell "--subpath http2-client-grpc" {});
+      http2-grpc-types = unmarkBroken (doJailbreak super.http2-grpc-types);
 
-      http2-grpc-proto-lens = doJailbreak (unmarkBroken super.http2-grpc-proto-lens);
-      http2-grpc-types = doJailbreak (unmarkBroken super.http2-grpc-types);
-      large-generics = doJailbreak (unmarkBroken super.large-generics);
-      large-records = doJailbreak (self.callCabal2nixWithOptions "large-records" repos.large-records "--subpath large-records" {});
+      large-generics = self.callCabal2nixWithOptions "large-generics" repos.large-records "--subpath large-generics" {};
+      large-records = self.callCabal2nixWithOptions "large-records" repos.large-records "--subpath large-records" {};
 
-      proto-lens-arbitrary = unmarkBroken super.proto-lens-arbitrary;
       proto3-suite = dontCheck (doJailbreak super.proto3-suite); # Test suite fails to build with module discovery errors
-      proto3-wire = doJailbreak (unmarkBroken super.proto3-wire);
     })
   ];
 
