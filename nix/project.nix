@@ -1,11 +1,11 @@
-{ system ? builtins.currentSystem }:
-let
-  # merge of https://github.com/NixOS/nixpkgs/pull/327219
-  nixpkgs = import (builtins.fetchTarball {
+{ system ? builtins.currentSystem
+, nixpkgsSrc ? (builtins.fetchTarball {
     url = "https://github.com/NixOS/nixpkgs/archive/80ab71601549f1af09894ff006c7e368f05f6234.tar.gz";
     sha256 = "sha256:06mzgzplg85gxgvm43yxh1gkqsbnp5m5y8cvxlwzbzbpxq81jaq8";
-  }) { inherit system overlays; };
-
+  })
+, nixpkgs ? import nixpkgsSrc { inherit system; }
+}:
+let
   gitignore = nixpkgs.fetchFromGitHub {
     owner = "hercules-ci";
     repo = "gitignore";
@@ -109,7 +109,9 @@ let
   overlays = [overlay];
 
 in rec {
-  inherit nixpkgs haskellOverrides iavl tendermint;
+  inherit haskellOverrides iavl tendermint;
+
+  nixpkgs = import nixpkgsSrc { inherit system overlays; };
 
   buildInputs = {
     inherit (nixpkgs) /*iavl*/ protobuf tendermint;
