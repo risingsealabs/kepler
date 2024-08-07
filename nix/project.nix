@@ -1,8 +1,9 @@
 { system ? builtins.currentSystem }:
 let
+  # merge of https://github.com/NixOS/nixpkgs/pull/327219
   nixpkgs = import (builtins.fetchTarball {
-    url = "https://github.com/NixOS/nixpkgs/archive/3f84a279f1a6290ce154c5531378acc827836fbb.tar.gz";
-    sha256 = "sha256:1qpvazfxh036ngm2xd1bgnshfrx0rrb9n0wrzf3dfq8h6v8c0mxv";
+    url = "https://github.com/NixOS/nixpkgs/archive/80ab71601549f1af09894ff006c7e368f05f6234.tar.gz";
+    sha256 = "sha256:06mzgzplg85gxgvm43yxh1gkqsbnp5m5y8cvxlwzbzbpxq81jaq8";
   }) { inherit system overlays; };
 
   gitignore = nixpkgs.fetchFromGitHub {
@@ -44,14 +45,6 @@ let
       repo   = "http2-grpc-haskell";
       rev    = "7c19009e37fc305f73988b06b2cba9f31ae5478e";
       sha256 = "sha256-aDn9LsImlz2mSbieSsW+42e8Rsv8oEgSv6MKXsntArk=";
-    };
-
-    # https://github.com/well-typed/large-records/pull/151
-    large-records = nixpkgs.fetchFromGitHub {
-      owner  = "well-typed";
-      repo   = "large-records";
-      rev    = "21bf268a9d078689e888e5eb47128235ce4f1a59";
-      sha256 = "sha256-GpNrAOTs/ZsTJZ7RNYB93hF7mM8MR92b1vnnwNawsqw=";
     };
   };
 
@@ -101,11 +94,6 @@ let
 
       http2-client-grpc = doJailbreak (self.callCabal2nixWithOptions "http2-client-grpc" repos.http2-grpc-haskell "--subpath http2-client-grpc" {});
       http2-grpc-types = unmarkBroken (doJailbreak super.http2-grpc-types);
-
-      large-generics = self.callCabal2nixWithOptions "large-generics" repos.large-records "--subpath large-generics" {};
-      large-records = self.callCabal2nixWithOptions "large-records" repos.large-records "--subpath large-records" {};
-
-      proto3-suite = dontCheck (doJailbreak super.proto3-suite); # Test suite fails to build with module discovery errors
     })
   ];
 
