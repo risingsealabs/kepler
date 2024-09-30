@@ -2,21 +2,25 @@ module Network.Tendermint.Client.Internal.RPCClient where
 
 import           Control.Applicative    ((<|>))
 import           Control.Exception      (Exception)
+import           Data.Aeson             (FromJSON (..),
+                                         ToJSON (..), Value (..),
+                                         (.:), (.:?), (.=))
+import qualified Data.Aeson             as Aeson
+import           Data.Text              (Text, unpack)
+
+#ifndef ghcjs_HOST_OS
 import           Control.Monad          (forever)
 import           Control.Monad.Catch    (throwM)
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Reader   (MonadReader, ask)
-import           Data.Aeson             (FromJSON (..), Result (..),
-                                         ToJSON (..), Value (..), fromJSON,
-                                         (.:), (.:?), (.=))
-import qualified Data.Aeson             as Aeson
+import           Data.Aeson             (Result (..), fromJSON)
 import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Char8  as BS
-import           Data.Text              (Text, unpack)
 import qualified Network.HTTP.Simple    as HTTP
 import qualified Network.WebSockets     as WS
 import           System.Random          (randomIO)
 import           Wuss                   (runSecureClient)
+#endif
 
 -- | JSON-RPC request.
 data Request = Request
@@ -91,7 +95,7 @@ instance Exception JsonRpcException
 -- | Name of called method.
 newtype MethodName = MethodName Text deriving (Eq, Show, ToJSON)
 
-
+#ifndef ghcjs_HOST_OS
 -- | JSON-RPC client config
 data Config = Config
   { cBaseHTTPRequest :: HTTP.Request
@@ -176,3 +180,4 @@ remote method input = do
         case fromJSON resultValue of
           Error err      -> throwM $ ParsingException err
           Success result -> pure result
+#endif

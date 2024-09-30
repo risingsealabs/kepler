@@ -9,6 +9,7 @@ copyright:           "2020 FOAM"
 description:         Please see the README on GitHub at <https://github.com/f-o-a-m/kepler/blob/master/hs-tendermind-client/README.md>
 
 default-extensions:
+- CPP
 - NamedFieldPuns
 - RecordWildCards
 - FlexibleContexts

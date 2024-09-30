@@ -2,23 +2,15 @@ module Network.Tendermint.Client
   ( module Network.Tendermint.Client
 
   -- * ReExports
+#ifndef ghcjs_HOST_OS
   , RPC.Config(..)
+#endif
   , RPC.JsonRpcException(..)
   , RPC.RpcError(..)
   )
 where
 
-import           Control.Concurrent                           (forkIO,
-                                                               killThread)
-import           Control.Concurrent.STM.TQueue                (newTQueueIO,
-                                                               writeTQueue)
 import           Control.Lens                                 ((^?))
-import           Control.Monad.Catch                          (throwM)
-import           Control.Monad.IO.Class                       (liftIO)
-import           Control.Monad.Reader                         (ReaderT, ask,
-                                                               runReaderT)
-import           Control.Monad.STM                            (atomically)
-import           Control.Monad.Trans.Resource                 (ResourceT)
 import           Data.Aeson                                   (FromJSON (..),
                                                                ToJSON (..),
                                                                genericParseJSON,
@@ -29,10 +21,6 @@ import           Data.Aeson.Casing                            (aesonDrop,
 import qualified Data.Aeson.Lens                              as AL
 import qualified Data.ByteArray.Base64String                  as Base64
 import           Data.ByteArray.HexString                     (HexString)
-import           Data.ByteString                              (ByteString)
-import           Data.Conduit                                 (ConduitT,
-                                                               bracketP)
-import           Data.Conduit.TQueue                          (sourceTQueue)
 import           Data.Default.Class                           (Default (..))
 import           Data.Int                                     (Int64)
 import           Data.Text                                    (Text)
@@ -40,10 +28,24 @@ import           Data.Word                                    (Word32)
 import           GHC.Generics                                 (Generic)
 import qualified Network.ABCI.Types.Messages.FieldTypes       as FieldTypes
 import qualified Network.ABCI.Types.Messages.Response         as Response
-import qualified Network.HTTP.Simple                          as HTTP
 import qualified Network.Tendermint.Client.Internal.RPCClient as RPC
 
-
+#ifndef ghcjs_HOST_OS
+import           Control.Concurrent                           (forkIO,
+                                                               killThread)
+import           Control.Concurrent.STM.TQueue                (newTQueueIO,
+                                                               writeTQueue)
+import           Control.Monad.Catch                          (throwM)
+import           Control.Monad.IO.Class                       (liftIO)
+import           Control.Monad.Reader                         (ReaderT, ask,
+                                                               runReaderT)
+import           Control.Monad.STM                            (atomically)
+import           Control.Monad.Trans.Resource                 (ResourceT)
+import           Data.ByteString                              (ByteString)
+import           Data.Conduit                                 (ConduitT,
+                                                               bracketP)
+import           Data.Conduit.TQueue                          (sourceTQueue)
+import qualified Network.HTTP.Simple                          as HTTP
 
 type TendermintM = ReaderT RPC.Config IO
 
@@ -65,6 +67,7 @@ defaultConfig host port tls =
             $ HTTP.setRequestPort port
             $ HTTP.defaultRequest
   in  RPC.Config baseReq mempty mempty host port tls
+#endif
 
 --------------------------------------------------------------------------------
 -- ABCI Query
@@ -72,8 +75,10 @@ defaultConfig host port tls =
 
 -- | invokes [/abci_query](https://tendermint.com/rpc/#abciquery) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/abci.go#L56
+#ifndef ghcjs_HOST_OS
 abciQuery :: RequestABCIQuery -> TendermintM ResultABCIQuery
 abciQuery = RPC.remote (RPC.MethodName "abci_query")
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/abci.go#L56
 data RequestABCIQuery = RequestABCIQuery
@@ -105,8 +110,10 @@ instance FromJSON ResultABCIQuery where
 
 -- | invokes [/block](https://tendermint.com/rpc/#block) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/blocks.go#L72
+#ifndef ghcjs_HOST_OS
 block :: RequestBlock -> TendermintM ResultBlock
 block = RPC.remote (RPC.MethodName "block")
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/blocks.go#L72
 data RequestBlock = RequestBlock
@@ -133,8 +140,10 @@ instance FromJSON ResultBlock where
 
 -- | invokes [/tx](https://tendermint.com/rpc/#tx) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/tx.go#L81
+#ifndef ghcjs_HOST_OS
 tx :: RequestTx -> TendermintM ResultTx
 tx = RPC.remote (RPC.MethodName "tx")
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/tx.go#L81
 data RequestTx = RequestTx
@@ -166,8 +175,10 @@ instance FromJSON ResultTx where
 
 -- | invokes [/broadcast_tx_async](https://tendermint.com/rpc/#broadcasttxasync) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/mempool.go#L75
+#ifndef ghcjs_HOST_OS
 broadcastTxAsync :: RequestBroadcastTxAsync -> TendermintM ResultBroadcastTx
 broadcastTxAsync = RPC.remote (RPC.MethodName "broadcast_tx_async")
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/mempool.go#L75
 data RequestBroadcastTxAsync = RequestBroadcastTxAsync
@@ -182,8 +193,10 @@ instance ToJSON RequestBroadcastTxAsync where
 
 -- | invokes [/broadcast_tx_sync](https://tendermint.com/rpc/#broadcasttxsync) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/mempool.go#L136
+#ifndef ghcjs_HOST_OS
 broadcastTxSync :: RequestBroadcastTxSync -> TendermintM ResultBroadcastTx
 broadcastTxSync = RPC.remote (RPC.MethodName "broadcast_tx_sync")
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/mempool.go#L136
 data RequestBroadcastTxSync = RequestBroadcastTxSync
@@ -198,9 +211,11 @@ instance ToJSON RequestBroadcastTxSync where
 
 -- | invokes [/broadcast_tx_commit](https://tendermint.com/rpc/#broadcasttxcommit) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/mempool.go#L215
+#ifndef ghcjs_HOST_OS
 broadcastTxCommit
   :: RequestBroadcastTxCommit -> TendermintM ResultBroadcastTxCommit
 broadcastTxCommit = RPC.remote (RPC.MethodName "broadcast_tx_commit")
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/mempool.go#L215
 data RequestBroadcastTxCommit = RequestBroadcastTxCommit
@@ -226,8 +241,10 @@ instance FromJSON ResultBroadcastTxCommit where
 
 -- | invokes [/health](https://tendermint.com/rpc/#health) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/health.go#L35
+#ifndef ghcjs_HOST_OS
 health :: TendermintM ResultHealth
 health = RPC.remote (RPC.MethodName "health") ()
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/types/responses.go#L208
 data ResultHealth = ResultHealth deriving (Eq, Show)
@@ -241,8 +258,10 @@ instance FromJSON ResultHealth where
 
 -- | invokes [/abci_info](https://tendermint.com/rpc/#abciinfo) rpc call
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/abci.go#L100
+#ifndef ghcjs_HOST_OS
 abciInfo :: TendermintM ResultABCIInfo
 abciInfo = RPC.remote (RPC.MethodName "abci_info") ()
+#endif
 
 -- https://github.com/tendermint/tendermint/blob/v0.32.2/rpc/core/types/responses.go#L188
 data ResultABCIInfo = ResultABCIInfo
@@ -279,6 +298,7 @@ instance FromJSON (TxResultEvent [FieldTypes.Event]) where
       , txEventEvents = es
       }
 
+#ifndef ghcjs_HOST_OS
 -- | invokes [/subscribe](https://tendermint.com/rpc/#subscribe) rpc call
 -- https://github.com/tendermint/tendermint/blob/master/rpc/core/events.go#L17
 subscribe
@@ -298,6 +318,7 @@ subscribe req = do
     (forkIO $ RPC.remoteWS cfg (RPC.MethodName "subscribe") req handler)
     killThread
     (const $ sourceTQueue queue)
+#endif
 
 newtype RequestSubscribe = RequestSubscribe
   { requestSubscribeQuery   :: Text
