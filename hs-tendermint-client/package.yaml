@@ -40,18 +40,14 @@ library:
     - aeson-casing
     - conduit
     - hs-abci-types
-    - http-client
-    - http-conduit
     - lens
     - lens-aeson
     - mtl
     - random
     - resourcet
     - stm
-    - stm-conduit
     - text
-    - websockets
-    - wuss
+
   ghc-options:
   - -Werror
   - -Wall
