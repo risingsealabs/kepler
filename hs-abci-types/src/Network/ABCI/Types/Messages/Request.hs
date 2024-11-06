@@ -17,7 +17,7 @@ import qualified Data.ByteArray.Base64String            as Base64
 import           Data.ByteArray.HexString               (HexString)
 import qualified Data.ByteArray.HexString               as Hex
 import           Data.Default.Class                     (Default (..))
-import           Data.Int                               (Int64)
+import           Data.Int                               (Int32, Int64)
 import           Data.ProtoLens.Message                 (Message (defMessage))
 import           Data.Text                              (Text)
 import           Data.Word                              (Word64)
@@ -312,7 +312,7 @@ instance Default BeginBlock where
 -- CheckTx
 --------------------------------------------------------------------------------
 
-data CheckTxType = New | Recheck | Unrecognized
+data CheckTxType = New | Recheck | Unrecognized Int32
   deriving (Eq, Show, Generic)
 
 instance ToJSON CheckTxType
@@ -349,12 +349,21 @@ instance Wrapped CheckTx where
   _Wrapped' = iso t f
    where
     t CheckTx {..} = defMessage & PT.tx .~ Base64.toBytes checkTxTx
+                                & PT.type' .~ case checkTxType of
+                                                New -> PT.New
+                                                Recheck -> PT.Recheck
+                                                Unrecognized 0 -> PT.New
+                                                Unrecognized 1 -> PT.Recheck
+                                                Unrecognized a -> toEnum (fromIntegral a)
 
     f message = CheckTx { checkTxTx = Base64.fromBytes $ message ^. PT.tx
                         , checkTxType = case message ^. PT.type' of
                             PT.New -> New
                             PT.Recheck -> Recheck
-                            PT.CheckTxType'Unrecognized _ -> Unrecognized
+                            a -> case fromIntegral (fromEnum a) of
+                              0 -> New
+                              1 -> Recheck
+                              x -> Unrecognized x
                         }
 
 instance Default CheckTx where
