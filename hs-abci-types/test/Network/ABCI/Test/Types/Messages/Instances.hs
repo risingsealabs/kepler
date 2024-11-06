@@ -45,6 +45,7 @@ instance Arbitrary Request.SetOption where arbitrary = genericArbitrary
 instance Arbitrary Request.InitChain where arbitrary = genericArbitrary
 instance Arbitrary Request.Query where arbitrary = genericArbitrary
 instance Arbitrary Request.BeginBlock where arbitrary = genericArbitrary
+instance Arbitrary Request.CheckTxType where arbitrary = genericArbitrary
 instance Arbitrary Request.CheckTx where arbitrary = genericArbitrary
 instance Arbitrary Request.DeliverTx where arbitrary = genericArbitrary
 instance Arbitrary Request.EndBlock where arbitrary = genericArbitrary

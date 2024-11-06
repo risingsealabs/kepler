@@ -312,12 +312,28 @@ instance Default BeginBlock where
 -- CheckTx
 --------------------------------------------------------------------------------
 
+data CheckTxType = New | Recheck | Unrecognized
+  deriving (Eq, Show, Generic)
+
+instance ToJSON CheckTxType
+instance FromJSON CheckTxType
+
+-- instance Wrapped CheckTxType where
+--   type Unwrapped CheckTxType = PT.CheckTxType
+
+--   _Wrapped' = iso t _f
+--    where
+--     t New = PT.New
+--     t Recheck = PT.Recheck
+
+--     f message = CheckTx { checkTxTx = Base64.fromBytes $ message ^. PT.tx }
+
 -- TODO: figure out what happened to Type CheckTxType field
 data CheckTx = CheckTx
   { checkTxTx :: Base64String
+  , checkTxType :: CheckTxType
   -- ^ The request transaction bytes
   } deriving (Eq, Show, Generic)
-
 
 makeABCILenses ''CheckTx
 
@@ -334,7 +350,12 @@ instance Wrapped CheckTx where
    where
     t CheckTx {..} = defMessage & PT.tx .~ Base64.toBytes checkTxTx
 
-    f message = CheckTx { checkTxTx = Base64.fromBytes $ message ^. PT.tx }
+    f message = CheckTx { checkTxTx = Base64.fromBytes $ message ^. PT.tx
+                        , checkTxType = case message ^. PT.type' of
+                            PT.New -> New
+                            PT.Recheck -> Recheck
+                            PT.CheckTxType'Unrecognized _ -> Unrecognized
+                        }
 
 instance Default CheckTx where
   def = defMessage ^. _Unwrapped'
