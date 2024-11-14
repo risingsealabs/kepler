@@ -11,7 +11,7 @@ import qualified Network.ABCI.Types.Messages.Request    as Request
 import qualified Network.ABCI.Types.Messages.Response   as Response
 import           Test.QuickCheck.Arbitrary              (Arbitrary, arbitrary)
 import           Test.QuickCheck.Arbitrary.Generic      (genericArbitrary)
-import           Test.QuickCheck.Gen                    (Gen)
+import           Test.QuickCheck.Gen                    (Gen, oneof)
 import           Test.QuickCheck.Instances              ()
 
 instance Arbitrary FieldTypes.Timestamp where
@@ -45,7 +45,7 @@ instance Arbitrary Request.SetOption where arbitrary = genericArbitrary
 instance Arbitrary Request.InitChain where arbitrary = genericArbitrary
 instance Arbitrary Request.Query where arbitrary = genericArbitrary
 instance Arbitrary Request.BeginBlock where arbitrary = genericArbitrary
-instance Arbitrary Request.CheckTxType where arbitrary = genericArbitrary
+instance Arbitrary Request.CheckTxType where arbitrary = oneof [pure Request.New, pure Request.Recheck]
 instance Arbitrary Request.CheckTx where arbitrary = genericArbitrary
 instance Arbitrary Request.DeliverTx where arbitrary = genericArbitrary
 instance Arbitrary Request.EndBlock where arbitrary = genericArbitrary

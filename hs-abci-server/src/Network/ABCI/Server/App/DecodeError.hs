@@ -22,6 +22,7 @@ data DecodeError
       { invalidPrefixMsg    :: BS.ByteString
       , invalidPrefixPrefix :: BS.ByteString
       }
+  | NotEnoughBytes
 
 print :: DecodeError -> String
 print e =
@@ -46,6 +47,7 @@ print e =
         <> showBS invalidPrefixPrefix
         <> " for request: "
         <> showBS invalidPrefixMsg
+    NotEnoughBytes -> "Not enough bytes"
   where
     showBS v = show $ (cs . BS16.encode $ v :: String)
     showFields (PL.TaggedValue tag _) = show tag

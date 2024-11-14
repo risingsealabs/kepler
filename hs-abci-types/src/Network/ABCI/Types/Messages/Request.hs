@@ -349,21 +349,16 @@ instance Wrapped CheckTx where
   _Wrapped' = iso t f
    where
     t CheckTx {..} = defMessage & PT.tx .~ Base64.toBytes checkTxTx
-                                & PT.type' .~ case checkTxType of
-                                                New -> PT.New
-                                                Recheck -> PT.Recheck
-                                                Unrecognized 0 -> PT.New
-                                                Unrecognized 1 -> PT.Recheck
-                                                Unrecognized a -> toEnum (fromIntegral a)
+                                & PT.type' .~ toEnum (case checkTxType of
+                                                New -> 0
+                                                Recheck -> 1
+                                                Unrecognized n -> fromIntegral n)
 
     f message = CheckTx { checkTxTx = Base64.fromBytes $ message ^. PT.tx
-                        , checkTxType = case message ^. PT.type' of
-                            PT.New -> New
-                            PT.Recheck -> Recheck
-                            a -> case fromIntegral (fromEnum a) of
-                              0 -> New
-                              1 -> Recheck
-                              x -> Unrecognized x
+                        , checkTxType = case fromEnum (message ^. PT.type') of
+                            0 -> New
+                            1 -> Recheck
+                            x -> Unrecognized (fromIntegral x)
                         }
 
 instance Default CheckTx where

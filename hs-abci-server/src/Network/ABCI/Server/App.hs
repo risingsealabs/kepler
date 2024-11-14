@@ -1,6 +1,8 @@
+{-# LANGUAGE BangPatterns #-}
 module Network.ABCI.Server.App
   ( App(..)
   , runApp
+  , appConduit
   , transformApp
   , withProto
   , Middleware
@@ -10,29 +12,27 @@ module Network.ABCI.Server.App
   , Request(..)
   , hashRequest
   , Response(..)
-  , LPByteStrings(..)
-  , decodeLengthPrefix
   , encodeLengthPrefix
+  , requestDecoder
+  , responseEncoder
   ) where
 
 import           Control.Lens                         ((?~), (^.))
 import           Control.Lens.Wrapped                 (Wrapped (..),
                                                        _Unwrapped')
-import           Control.Monad                        ((>=>))
+import           Control.Monad                        (when)
 import           Data.Aeson                           (FromJSON (..),
                                                        ToJSON (..), Value (..),
                                                        object, withObject, (.:),
                                                        (.=))
 import           Data.Aeson.Types                     (Parser)
-import           Data.Bifunctor                       (first)
 import qualified Data.ByteString                      as BS
 import           Data.Function                        ((&))
 import           Data.Kind                            (Type)
 import qualified Data.ProtoLens                       as PL
 import           Data.ProtoLens.Encoding.Bytes        (getVarInt, putVarInt,
                                                        runBuilder, runParser,
-                                                       signedInt64ToWord,
-                                                       wordToSignedInt64)
+                                                       signedInt64ToWord, wordToSignedInt64)
 import           Data.String.Conversions              (cs)
 import           Data.Text                            (Text)
 import           Network.ABCI.Server.App.DecodeError  (DecodeError)
@@ -44,11 +44,16 @@ import           Crypto.Hash                          (hashWith)
 import           Crypto.Hash.Algorithms               (SHA256 (..))
 import           Data.ByteArray                       (convert)
 import qualified Data.ByteArray.HexString             as Hex
+import           Data.Int (Int64)
 import           Data.Default.Class                   (Default (..))
 import           Data.ProtoLens.Message               (Message (defMessage))
 import           Data.ProtoLens.Prism                 (( # ))
 import qualified Proto.Types                          as PT
 import qualified Proto.Types_Fields                   as PT
+
+import Data.Conduit (ConduitT, (.|))
+import qualified Data.Conduit as C
+import qualified Data.Conduit.Combinators as C
 
 -- | Used to parametrize Request and Response types
 data MessageType
@@ -297,56 +302,56 @@ type Middleware m = App m -> App m
 transformApp :: (forall (t :: MessageType). m (Response t) -> g (Response t)) -> App m -> App g
 transformApp nat (App f) = App $ nat . f
 
--- | Compiles `App` down to `AppBS`
-runApp :: forall m. Applicative m => App m -> LPByteStrings -> m LPByteStrings
-runApp (App app) bs =
-  bs
-    & (decodeLengthPrefix >=> decodeRequests)
-    & either (pure . onError) (traverse onResponse)
-    & fmap (encodeLengthPrefix . encodeResponses)
-  where
-    onError :: DecodeError -> [PT.Response]
-    onError err = [toProto $ ResponseException $ Response.Exception $ cs $ DecodeError.print err]
+appConduit :: Monad m => App m -> ConduitT BS.ByteString BS.ByteString m ()
+appConduit app = requestDecoder .| C.mapM (either (pure . onError) (runApp app)) .| responseEncoder
 
-    onResponse :: PT.Request'Value -> m PT.Response
-    onResponse = withProto $ fmap toProto . app
+runApp :: forall m. Functor m => App m -> PT.Request'Value -> m PT.Response
+runApp (App app) = withProto $ fmap toProto . app
 
-    -- | Encodes responses to bytestrings
-    encodeResponses :: [PT.Response] -> [BS.ByteString]
-    encodeResponses = map PL.encodeMessage
-
-    -- | Decodes bytestrings into requests
-    decodeRequests :: [BS.ByteString] -> Either DecodeError [PT.Request'Value]
-    decodeRequests = traverse $ \packet -> case PL.decodeMessage packet of
-      Left parseError -> Left $ DecodeError.CanNotDecodeRequest packet parseError
-      Right (request :: PT.Request) -> case request ^. PT.maybe'value of
-        Nothing -> Left $ DecodeError.NoValueInRequest packet (request ^. PL.unknownFields)
-        Just value -> Right $ value
-
-
--- | ByteString which contains multiple length prefixed ByteStrings
-newtype LPByteStrings = LPByteStrings { unLPByteStrings :: BS.ByteString } deriving (Ord,Eq)
+onError :: DecodeError -> PT.Response
+onError err = toProto $ ResponseException $ Response.Exception $ cs $ DecodeError.print err
 
 -- | Encodes ByteStrings into varlength-prefixed ByteString
-encodeLengthPrefix :: [BS.ByteString] -> LPByteStrings
-encodeLengthPrefix = LPByteStrings . foldMap encoder
+encodeLengthPrefix :: BS.ByteString -> BS.ByteString
+encodeLengthPrefix bytes = header <> bytes
   where
-    encoder bytes =
-      let
-        headerN = signedInt64ToWord . fromIntegral . BS.length $ bytes
-        header = runBuilder $ putVarInt headerN
-      in
-        header `BS.append` bytes
+    headerN = signedInt64ToWord . fromIntegral . BS.length $ bytes
+    header = runBuilder $ putVarInt headerN
 
--- | Decodes varlength-prefixed ByteString into ByteStrings
-decodeLengthPrefix :: LPByteStrings -> Either DecodeError [BS.ByteString]
-decodeLengthPrefix (LPByteStrings bs)
-  | bs == mempty = Right []
+requestDecoder :: Monad m => ConduitT BS.ByteString (Either DecodeError PT.Request'Value) m ()
+requestDecoder = do
+  mbs <- C.await
+  case mbs of
+    Nothing -> return ()
+    Just bs -> do
+      -- actual payloads are prefixed with a variable size encoding of their length
+      let lenres = runParser getVarInt bs
+      case lenres of
+        Left e -> C.yield (Left $ DecodeError.ProtoLensParseError bs e) >> requestDecoder
+        Right len_ -> do
+          let len = wordToSignedInt64 len_
+              lenLength = BS.length $ runBuilder (putVarInt len_)
+              bs' = BS.drop lenLength bs
+          emsg <- parseN len bs'
+          case emsg of
+            Left e -> C.yield (Left e) -- no more bytes, no point in trying again
+            Right msgBytes -> case PL.decodeMessage msgBytes of
+              Left e -> C.yield (Left $ DecodeError.CanNotDecodeRequest msgBytes e) >> requestDecoder
+              Right (req :: PT.Request)
+                | Just v <- req ^. PT.maybe'value -> C.yield (Right v) >> requestDecoder
+                | otherwise -> C.yield (Left $ DecodeError.NoValueInRequest msgBytes (req ^. PL.unknownFields))
+                            >> requestDecoder
+
+parseN :: Monad m => Int64 -> BS.ByteString -> ConduitT BS.ByteString o m (Either DecodeError BS.ByteString)
+parseN len !acc
+  | fromIntegral (BS.length acc) >= len = case BS.splitAt (fromIntegral len) acc of
+      (bs, rest) -> when (BS.length rest /= 0) (C.leftover rest)
+                 >> return (Right bs)
   | otherwise = do
-      n <- first (DecodeError.ProtoLensParseError bs) $ runParser getVarInt bs
-      let lengthHeader = runBuilder $ putVarInt n
-      messageBytesWithTail <- case BS.stripPrefix lengthHeader bs of
-        Nothing -> Left $ DecodeError.InvalidPrefix lengthHeader bs
-        Just a  -> Right a
-      let (messageBytes, remainder) = BS.splitAt (fromIntegral $ wordToSignedInt64 n) messageBytesWithTail
-      (messageBytes : ) <$> decodeLengthPrefix (LPByteStrings remainder)
+      mbs <- C.await
+      case mbs of
+        Nothing -> return (Left DecodeError.NotEnoughBytes)
+        Just bs -> parseN len (acc <> bs)
+
+responseEncoder :: Monad m => ConduitT PT.Response BS.ByteString m ()
+responseEncoder = C.map (encodeLengthPrefix . PL.encodeMessage)

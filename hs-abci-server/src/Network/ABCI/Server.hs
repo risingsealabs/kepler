@@ -1,13 +1,11 @@
 module Network.ABCI.Server where
 
 import           Data.Conduit            (runConduit, (.|))
-import qualified Data.Conduit.List       as CL
 import           Data.Conduit.Network    (AppData, ServerSettings, appSink,
                                           appSource, runTCPServer,
                                           serverSettings)
 import           Data.String             (fromString)
-import           Network.ABCI.Server.App (App (..))
-import qualified Network.ABCI.Server.App as App
+import           Network.ABCI.Server.App (App (..), appConduit)
 
 
 -- | Default ABCI app network settings for serving on localhost at the
@@ -25,9 +23,8 @@ serveAppWith
 serveAppWith cfg onAquire app = runTCPServer cfg $ \appData -> do
   onAquire appData
   runConduit $ appSource appData
-    .| CL.mapM (fmap App.unLPByteStrings . App.runApp app . App.LPByteStrings)
+    .| appConduit app
     .| appSink appData
-
 
 -- | Serve an ABCI application with default local 'ServerSettings'
 -- and a no-op on acquiring the socket resource.
